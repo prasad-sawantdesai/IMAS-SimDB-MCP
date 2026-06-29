@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "imas-simdb-mcp"
+version = "0.1.0"
+description = "MCP server for searching SimDB through PostgreSQL and pgvector"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "mcp>=1.0",
+    "psycopg[binary]>=3.1",
+]
+
+[project.scripts]
+imas-simdb-mcp = "imas_simdb_mcp.server:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 88
