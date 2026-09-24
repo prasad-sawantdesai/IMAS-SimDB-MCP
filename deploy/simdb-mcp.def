@@ -1,0 +1,16 @@
+# Apptainer image, for hosts where Docker is not available.
+#   apptainer build simdb-mcp.sif deploy/simdb-mcp.def
+#   apptainer run --env-file deploy/simdb-mcp.env simdb-mcp.sif
+Bootstrap: docker
+From: python:3.12-slim
+
+%files
+    pyproject.toml /app/pyproject.toml
+    README.md /app/README.md
+    src /app/src
+
+%post
+    pip install --no-cache-dir /app
+
+%runscript
+    exec simdb-mcp serve --proxy-headers "$@"
