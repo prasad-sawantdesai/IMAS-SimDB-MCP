@@ -216,3 +216,11 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# local deployment secrets
+deploy/simdb-mcp.env
+deploy/certs/
+.mcp.json
+
+# documentation build
+docs/_build/
