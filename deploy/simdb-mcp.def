@@ -7,6 +7,7 @@ From: python:3.12-slim
 %files
     pyproject.toml /app/pyproject.toml
     README.md /app/README.md
+    LICENSE /app/LICENSE
     src /app/src
 
 %post
