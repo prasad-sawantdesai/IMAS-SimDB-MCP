@@ -1,0 +1,8 @@
+.venv
+.git
+**/__pycache__
+.pytest_cache
+tests
+scripts
+deploy/*.env
+*.sif

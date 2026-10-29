@@ -1,0 +1,29 @@
+# SimDB MCP on a test server.
+#
+#   cp deploy/simdb-mcp.env.example deploy/simdb-mcp.env   # edit
+#   docker compose up -d --build                           # MCP only, on 127.0.0.1:8000
+#   docker compose --profile tls up -d --build             # plus nginx with TLS on :443
+services:
+  simdb-mcp:
+    build: .
+    image: imas-simdb-mcp:latest
+    restart: unless-stopped
+    env_file: deploy/simdb-mcp.env
+    environment:
+      MCP_HOST: 0.0.0.0
+      MCP_PORT: "8000"
+    # Loopback only: reach it through the TLS proxy (users send passwords in a header).
+    ports:
+      - "127.0.0.1:8000:8000"
+
+  nginx:
+    profiles: ["tls"]
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on: [simdb-mcp]
+    ports:
+      - "443:443"
+      - "80:80"
+    volumes:
+      - ./deploy/nginx-docker.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./deploy/certs:/etc/nginx/certs:ro   # server.crt + server.key

@@ -1,0 +1,22 @@
+[Unit]
+Description=IMAS SimDB MCP server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=simdbmcp
+Group=simdbmcp
+WorkingDirectory=/opt/simdb-mcp
+EnvironmentFile=/etc/simdb-mcp/simdb-mcp.env
+ExecStart=/opt/simdb-mcp/.venv/bin/simdb-mcp serve --proxy-headers --workers 2
+Restart=on-failure
+RestartSec=5
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
