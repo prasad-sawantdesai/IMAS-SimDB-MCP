@@ -80,6 +80,12 @@ the deployed API.
 
 Pages are Markdown (MyST) in `docs/`. Read the Docs builds them with `.readthedocs.yaml`.
 
+## Working with AI coding agents
+
+`AGENTS.md` holds the instructions for coding agents (commands, rules, IMAS accuracy
+requirements, gotchas); Claude Code, Codex and others read it. `CLAUDE.md` imports it and adds
+Claude-specific notes. Keep both short and update them when a rule or command changes.
+
 ## Adding a tool
 
 1. Put the SimDB logic in `catalogue.py` (or `client.py` for a new endpoint).
