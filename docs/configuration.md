@@ -35,9 +35,39 @@ the default.
 |---|---|---|
 | `MCP_HOST` | `127.0.0.1` | Address to listen on (`0.0.0.0` inside a container). |
 | `MCP_PORT` | `8000` | Port. |
-| `MCP_PATH` | `/mcp` | URL path of the MCP endpoint. |
+| `MCP_PATH` | `/mcp` | URL path of the MCP endpoint (one catalogue only; see below). |
 | `MCP_ALLOWED_HOSTS` | – | Host names users put in the URL, e.g. `simdb-mcp.iter.org,simdb-mcp.iter.org:*`. Requests with other `Host` headers are refused. |
 | `MCP_ALLOWED_ORIGINS` | – | Allowed browser origins, if browsers connect directly. |
+
+## Several SimDB catalogues
+
+One process can serve several SimDB servers, each at its own path, `/mcp/<name>`. Set
+`SIMDB_CATALOGUES` to a TOML file with one table per catalogue (example:
+`deploy/catalogues.toml.example`):
+
+```toml
+[iter]
+url = "https://simdb.iter.org/scenarios/api"
+auth_mode = "f5"
+dashboard_url = "https://simdb.iter.org/dashboard/uuid/{uuid}"
+
+[itpa]
+url = "http://10.154.84.240:5400"
+auth_mode = "none"
+```
+
+This serves `/mcp/iter` and `/mcp/itpa`; `/mcp` itself and `MCP_PATH` are then not used.
+
+| Key | Required | Meaning |
+|---|---|---|
+| `url` | yes | SimDB API base URL, as `SIMDB_URL`. |
+| `auth_mode` | no, default `f5` | As `SIMDB_AUTH_MODE`. Check the server: `curl <url>/` shows `"authentication"`; `None` means `auth_mode = "none"`. |
+| `api_version`, `ca_bundle`, `verify_tls` | no | As the matching `SIMDB_*` variables. |
+| `dashboard_url` | no | Dashboard link for this catalogue. Not inherited from `SIMDB_DASHBOARD_URL`. |
+
+Catalogue names may use `a-z`, `0-9` and `-`. All other settings (limits, caches, Data
+Dictionary, `MCP_*`) are shared and still come from the environment. Each catalogue keeps its
+own SimDB logins and caches.
 
 ## Command line
 

@@ -20,6 +20,15 @@ MCP client ── Authorization: Basic ──▶ server.py (tool)
                                    SimDB REST API (read endpoints only)
 ```
 
+## Several catalogues
+
+With `SIMDB_CATALOGUES`, `app.py` builds one complete MCP server per catalogue, exactly as for
+a single catalogue, each with its own SimDB sessions and caches; only the Data Dictionary is
+shared. A small dispatcher (`CatalogueRouter`) sends `/mcp/<name>` to the right one and answers
+`/healthz`. It also has to run every catalogue app's ASGI lifespan, because each MCP app starts
+its session manager there (`mcp/server/lowlevel/server.py`, `streamable_http_app`); a Starlette
+`Mount` would not, and requests would fail with "Task group is not initialized".
+
 ## Login
 
 `simdb.iter.org` sits behind an F5 firewall and does not accept SimDB tokens. The server

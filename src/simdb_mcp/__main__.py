@@ -8,36 +8,9 @@ import logging
 import sys
 
 import uvicorn
-from mcp.server.transport_security import TransportSecuritySettings
 
+from .app import build_app
 from .config import Settings
-from .server import create_server
-
-
-def build_app(settings: Settings):
-    """ASGI app for the streamable HTTP transport (also usable with ``uvicorn --factory``)."""
-    security = None
-    if settings.allowed_hosts:
-        security = TransportSecuritySettings(
-            enable_dns_rebinding_protection=True,
-            allowed_hosts=settings.allowed_hosts + ["127.0.0.1:*", "localhost:*"],
-            allowed_origins=settings.allowed_origins,
-        )
-    server = create_server(settings)
-    # Stateless + JSON responses: any worker or replica can answer any request,
-    # so the service can run behind a load balancer without sticky sessions.
-    return server.streamable_http_app(
-        streamable_http_path=settings.path,
-        stateless_http=True,
-        json_response=True,
-        transport_security=security,
-        host=settings.host,
-    )
-
-
-def app():
-    """App factory for `uvicorn --factory` and for multiple workers."""
-    return build_app(Settings.from_env())
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -67,7 +40,7 @@ def main(argv: list[str] | None = None) -> None:
     }
     if args.workers > 1:
         # Each worker process builds its own app from the environment.
-        uvicorn.run("simdb_mcp.__main__:app", factory=True, workers=args.workers, **options)
+        uvicorn.run("simdb_mcp.app:app", factory=True, workers=args.workers, **options)
     else:
         uvicorn.run(build_app(settings), **options)
 

@@ -6,7 +6,7 @@ import pytest
 
 from simdb_mcp.auth import credentials_from_headers
 from simdb_mcp.client import AuthenticationError
-from simdb_mcp.config import Settings
+from simdb_mcp.config import Settings, load_catalogues
 from simdb_mcp.keys import collapse_keys, flatten_schema, key_groups, simdb_key_info, text_key_priority
 from simdb_mcp.query import Filter, simdb_datetime
 from simdb_mcp.records import simulation_summary
@@ -112,3 +112,50 @@ def test_default_columns_can_be_changed_or_turned_off(monkeypatch):
     assert Settings.from_env().default_return_keys == ["machine", "pulse"]
     monkeypatch.setenv("SIMDB_DEFAULT_RETURN_KEYS", "")
     assert Settings.from_env().default_return_keys == []
+
+
+# -- several catalogues ------------------------------------------------------------------
+
+
+def write(tmp_path, text: str) -> str:
+    path = tmp_path / "catalogues.toml"
+    path.write_text(text)
+    return str(path)
+
+
+def test_catalogues_file_gives_one_setting_per_catalogue(tmp_path):
+    path = write(
+        tmp_path,
+        """
+[iter]
+url = "https://simdb.iter.org/scenarios/api/"
+dashboard_url = "https://simdb.iter.org/dashboard/uuid/{uuid}"
+
+[itpa]
+url = "http://10.154.84.240:5400"
+auth_mode = "none"
+""",
+    )
+    base = Settings(timeout=30, dashboard_url="https://global/{uuid}")
+    catalogues = load_catalogues(path, base)
+
+    assert list(catalogues) == ["iter", "itpa"]
+    assert catalogues["iter"].simdb_url == "https://simdb.iter.org/scenarios/api"
+    assert catalogues["iter"].auth_mode == "f5"  # the default
+    assert catalogues["itpa"].auth_mode == "none"
+    assert catalogues["itpa"].timeout == 30  # global settings are kept
+    assert catalogues["itpa"].dashboard_url is None  # but a dashboard is never inherited
+
+
+@pytest.mark.parametrize(
+    ("text", "problem"),
+    [
+        ('[itpa]\nauth_mode = "none"', "'url' is required"),
+        ('[itpa]\nurl = "http://x"\ntimeout = 5', "unknown key"),
+        ('[ITPA_Server]\nurl = "http://x"', "name must use only"),
+        ('[itpa]\nurl = "http://x"\nauth_mode = "token"', "auth_mode must be one of"),
+    ],
+)
+def test_catalogues_file_errors_name_the_problem(tmp_path, text, problem):
+    with pytest.raises(ValueError, match=problem):
+        load_catalogues(write(tmp_path, text), Settings())

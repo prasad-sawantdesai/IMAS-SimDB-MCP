@@ -1,0 +1,13 @@
+# Several SimDB catalogues served by one simdb-mcp process, each at /mcp/<name>.
+# Copy to deploy/catalogues.toml and set SIMDB_CATALOGUES to its path.
+# Per catalogue: url (required), auth_mode (f5 | basic | none, default f5), api_version,
+# dashboard_url, ca_bundle, verify_tls. Everything else comes from the environment.
+
+[iter]
+url = "https://simdb.iter.org/scenarios/api"
+auth_mode = "f5"
+dashboard_url = "https://simdb.iter.org/dashboard/uuid/{uuid}"
+
+[itpa]
+url = "http://10.154.84.240:5400"
+auth_mode = "none"

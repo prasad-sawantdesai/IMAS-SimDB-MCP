@@ -9,6 +9,7 @@ import json
 import socket
 import threading
 import time
+from contextlib import contextmanager
 
 import httpx2
 import pytest
@@ -16,6 +17,7 @@ import uvicorn
 from mcp import Client
 from mcp.client.streamable_http import streamable_http_client
 
+from simdb_mcp.app import build_app
 from simdb_mcp.config import Settings
 from simdb_mcp.server import create_server
 
@@ -247,12 +249,9 @@ async def test_without_credentials_the_tool_explains_how_to_connect(fake):
     assert result.is_error and "Authorization: Basic" in result.content[0].text
 
 
-@pytest.fixture
-def http_url(fake):
-    """The real streamable-HTTP app on a free local port, logging in to the fake F5."""
-    app = create_server(Settings(simdb_url=BASE), fake.transport()).streamable_http_app(
-        stateless_http=True, json_response=True
-    )
+@contextmanager
+def serving(app):
+    """Run an ASGI app with uvicorn on a free local port; yields its base URL."""
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
         port = s.getsockname()[1]
@@ -262,15 +261,24 @@ def http_url(fake):
     deadline = time.time() + 10
     while not server.started and time.time() < deadline:
         time.sleep(0.05)
-    yield f"http://127.0.0.1:{port}"
-    server.should_exit = True
-    thread.join(5)
+    try:
+        yield f"http://127.0.0.1:{port}"
+    finally:
+        server.should_exit = True
+        thread.join(5)
 
 
-async def call_over_http(url: str, password: str, tool: str, arguments: dict):
+@pytest.fixture
+def http_url(fake):
+    """The real single-catalogue app (as `simdb-mcp serve` builds it), logging in to the fake F5."""
+    with serving(build_app(Settings(simdb_url=BASE), transports={"": fake.transport()})) as url:
+        yield url
+
+
+async def call_over_http(url: str, password: str, tool: str, arguments: dict, path: str = "/mcp"):
     header = "Basic " + base64.b64encode(f"{USERNAME}:{password}".encode()).decode()
     async with httpx2.AsyncClient(headers={"Authorization": header}) as http:
-        async with Client(streamable_http_client(f"{url}/mcp", http_client=http)) as client:
+        async with Client(streamable_http_client(f"{url}{path}", http_client=http)) as client:
             return await client.call_tool(tool, arguments)
 
 
@@ -288,3 +296,51 @@ async def test_wrong_password_is_reported(http_url):
 async def test_health_endpoint(http_url):
     async with httpx2.AsyncClient() as http:
         assert (await http.get(f"{http_url}/healthz")).json()["status"] == "ok"
+
+
+# -- several catalogues in one process ------------------------------------------------------
+
+
+@pytest.fixture
+def two_catalogues(tmp_path):
+    """One app serving /mcp/iter (fake behind the F5) and /mcp/itpa (fake without login)."""
+    config = tmp_path / "catalogues.toml"
+    config.write_text(
+        '[iter]\nurl = "https://simdb.example.org/scenarios/api"\n\n'
+        '[itpa]\nurl = "https://simdb.example.org/scenarios/api"\nauth_mode = "none"\n'
+    )
+    iter_simdb, itpa_simdb = FakeSimDB(), FakeSimDB()
+    itpa_simdb.require_login = False
+    app = build_app(
+        Settings(catalogues_file=str(config)),
+        transports={"iter": iter_simdb.transport(), "itpa": itpa_simdb.transport()},
+    )
+    with serving(app) as url:
+        yield url, iter_simdb, itpa_simdb
+
+
+async def test_each_catalogue_path_reaches_its_own_simdb(two_catalogues):
+    url, iter_simdb, itpa_simdb = two_catalogues
+
+    itpa = await call_over_http(url, PASSWORD, "simdb_server_info", {}, path="/mcp/itpa")
+    assert json.loads(itpa.content[0].text)["catalogue"] == "itpa"
+    assert itpa_simdb.requests and not iter_simdb.requests
+
+    iter_ = await call_over_http(url, PASSWORD, "simdb_server_info", {}, path="/mcp/iter")
+    assert json.loads(iter_.content[0].text)["catalogue"] == "iter"
+    assert iter_simdb.login_count == 1  # the F5 login happens only for 'iter'
+
+
+async def test_unknown_catalogue_and_health(two_catalogues):
+    url, _, _ = two_catalogues
+    async with httpx2.AsyncClient() as http:
+        missing = await http.post(f"{url}/mcp/nope", json={})
+        health = (await http.get(f"{url}/healthz")).json()
+    assert missing.status_code == 404 and "/mcp/itpa" in missing.text
+    assert set(health["catalogues"]) == {"iter", "itpa"}
+
+
+async def test_login_is_reused_across_requests(http_url, fake):
+    await call_over_http(http_url, PASSWORD, "simdb_server_info", {})
+    await call_over_http(http_url, PASSWORD, "simdb_list_metadata_keys", {})
+    assert fake.login_count == 1

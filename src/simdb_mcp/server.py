@@ -78,11 +78,28 @@ FULL_KEY_LIST_MAX = 150  # above this, simdb_list_metadata_keys returns groups i
 __all__ = ["create_server"]
 
 
-def create_server(settings: Settings, transport: httpx.AsyncBaseTransport | None = None) -> MCPServer:
-    """Build the MCP server. `transport` replaces the network in tests."""
+def create_server(
+    settings: Settings,
+    transport: httpx.AsyncBaseTransport | None = None,
+    *,
+    catalogue_name: str | None = None,
+    dd: DataDictionary | None = None,
+) -> MCPServer:
+    """Build the MCP server for one SimDB.
+
+    `catalogue_name` labels it when one process serves several SimDB catalogues (see app.py);
+    `dd` lets those servers share one Data Dictionary. `transport` replaces the network in tests.
+    """
     pool = SessionPool(settings, transport)
     catalogue = Catalogue(settings)
-    dd = DataDictionary(settings.dd_version) if settings.dd_enabled else None
+    if dd is None and settings.dd_enabled:
+        dd = DataDictionary(settings.dd_version)
+    instructions = INSTRUCTIONS
+    if catalogue_name:
+        instructions = (
+            f"This server searches the SimDB catalogue '{catalogue_name}' at {settings.simdb_url}. "
+            "Other catalogues, if any, are separate MCP servers.\n\n" + INSTRUCTIONS
+        )
 
     @asynccontextmanager
     async def lifespan(_server):
@@ -94,9 +111,9 @@ def create_server(settings: Settings, transport: httpx.AsyncBaseTransport | None
             await pool.aclose()
 
     mcp = MCPServer(
-        name="imas-simdb",
-        title="IMAS SimDB metadata search",
-        instructions=INSTRUCTIONS,
+        name=f"imas-simdb-{catalogue_name}" if catalogue_name else "imas-simdb",
+        title=f"IMAS SimDB metadata search ({catalogue_name})" if catalogue_name else "IMAS SimDB metadata search",
+        instructions=instructions,
         version=__version__,
         lifespan=lifespan,
     )
@@ -177,6 +194,7 @@ def create_server(settings: Settings, transport: httpx.AsyncBaseTransport | None
         info = await call(session.server_info())
         await call(session.resolve_api_version())
         return {
+            "catalogue": catalogue_name,
             "simdb_url": settings.simdb_url,
             "api_version_used": session.api_version,
             "auth_mode": settings.auth_mode,

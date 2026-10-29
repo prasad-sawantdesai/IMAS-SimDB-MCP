@@ -32,6 +32,22 @@ Type `/mcp` in Claude: `simdb` should be listed as connected. Then ask in plain 
 
 To remove the server: `claude mcp remove simdb -s user`.
 
+## Several catalogues on one server
+
+If your administrator serves several SimDB catalogues, each has its own URL, for example
+`https://simdb-mcp.iter.org/mcp/iter` and `https://simdb-mcp.iter.org/mcp/itpa`. Add one entry
+per catalogue, with different names:
+
+```bash
+claude mcp add-json --scope user simdb-iter \
+  '{"type":"http","url":"https://simdb-mcp.iter.org/mcp/iter","headers":{"Authorization":"Basic ${SIMDB_BASIC_AUTH}"}}'
+claude mcp add-json --scope user simdb-itpa \
+  '{"type":"http","url":"https://simdb-mcp.iter.org/mcp/itpa","headers":{"Authorization":"Basic ${SIMDB_BASIC_AUTH}"}}'
+```
+
+Then name the catalogue in your question: *"In ITPA SimDB, find …"*. `/healthz` on the server
+lists the available catalogues.
+
 ## Other MCP clients
 
 Any client that can send a custom HTTP header works: use the streamable HTTP transport, the

@@ -50,6 +50,14 @@ curl https://simdb-mcp.iter.org/healthz
 
 Update later with `git pull && docker compose up -d --build`.
 
+### Several catalogues
+
+To serve several SimDB servers from this one container, copy
+`deploy/catalogues.toml.example` to `deploy/catalogues.toml`, edit it, and uncomment the
+`SIMDB_CATALOGUES` line and the volume in `docker-compose.yml`. Then
+`docker compose up -d` and check `curl http://127.0.0.1:8000/healthz`, which lists the
+catalogues. Details: [Configuration](configuration.md#several-simdb-catalogues).
+
 ## systemd
 
 ```bash

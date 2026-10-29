@@ -12,6 +12,10 @@ services:
     environment:
       MCP_HOST: 0.0.0.0
       MCP_PORT: "8000"
+      # Several catalogues at /mcp/<name>: uncomment this and the volume below.
+      # SIMDB_CATALOGUES: /app/catalogues.toml
+    # volumes:
+    #   - ./deploy/catalogues.toml:/app/catalogues.toml:ro
     # Loopback only: reach it through the TLS proxy (users send passwords in a header).
     ports:
       - "127.0.0.1:8000:8000"

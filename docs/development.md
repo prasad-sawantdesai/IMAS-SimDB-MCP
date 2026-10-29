@@ -35,6 +35,7 @@ The rules are in `[tool.ruff]` in `pyproject.toml`.
 | File | Responsibility |
 |---|---|
 | `server.py` | The MCP tools: check arguments, call the catalogue, shape the answer. Also the instructions sent to the model. |
+| `app.py` | The web app: one catalogue at `/mcp`, or several at `/mcp/<name>` with `SIMDB_CATALOGUES`. |
 | `catalogue.py` | How to search SimDB: paging strategies, date windows, free text, result columns, caches. |
 | `client.py` | HTTP requests to SimDB, F5 login, API version, per-user session pool. |
 | `keys.py` | Key names, SimDB's documentation of its keys, server validation rules. |

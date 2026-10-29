@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import dataclasses
 import os
+import re
+import tomllib
 from dataclasses import dataclass, field
 from typing import Literal
 
 AuthMode = Literal["f5", "basic", "none"]
+AUTH_MODES = ("f5", "basic", "none")
 
 DEFAULT_RETURN_KEYS = ["machine", "pulse", "code.name", "status", "description"]
 
@@ -75,6 +79,10 @@ class Settings:
     allowed_hosts: list[str] = field(default_factory=list)
     allowed_origins: list[str] = field(default_factory=list)
 
+    catalogues_file: str | None = None
+    """TOML file listing several SimDB catalogues, each served at /mcp/<name>. Unset: one
+    catalogue from the SIMDB_* settings above, served at `path`."""
+
     @property
     def verify(self) -> bool | str:
         if not self.verify_tls:
@@ -85,7 +93,7 @@ class Settings:
     def from_env(cls) -> Settings:
         """Settings from SIMDB_* and MCP_* environment variables; unset ones keep the defaults above."""
         auth_mode = (_env("SIMDB_AUTH_MODE") or cls.auth_mode).lower()
-        if auth_mode not in ("f5", "basic", "none"):
+        if auth_mode not in AUTH_MODES:
             raise ValueError(f"SIMDB_AUTH_MODE must be f5, basic or none, not {auth_mode!r}")
         return cls(
             simdb_url=(_env("SIMDB_URL") or cls.simdb_url).rstrip("/"),
@@ -113,4 +121,52 @@ class Settings:
             path=_env("MCP_PATH") or cls.path,
             allowed_hosts=_env_list("MCP_ALLOWED_HOSTS"),
             allowed_origins=_env_list("MCP_ALLOWED_ORIGINS"),
+            catalogues_file=_env("SIMDB_CATALOGUES"),
         )
+
+
+# -- several catalogues -------------------------------------------------------------------
+
+CATALOGUE_NAME = re.compile(r"^[a-z0-9-]+$")  # the name becomes the URL path /mcp/<name>
+# TOML key -> Settings field. Everything else (limits, caches, DD, MCP_*) stays global.
+CATALOGUE_KEYS = {
+    "url": "simdb_url",
+    "auth_mode": "auth_mode",
+    "api_version": "api_version",
+    "dashboard_url": "dashboard_url",
+    "ca_bundle": "ca_bundle",
+    "verify_tls": "verify_tls",
+}
+
+
+def load_catalogues(path: str, base: Settings) -> dict[str, Settings]:
+    """Read a catalogues file into {name: Settings}, each based on `base`.
+
+    One TOML table per catalogue, for example::
+
+        [itpa]
+        url = "http://10.154.84.240:5400"
+        auth_mode = "none"
+    """
+    with open(path, "rb") as f:
+        tables = tomllib.load(f)
+    if not tables:
+        raise ValueError(f"{path}: no catalogues defined")
+    catalogues = {}
+    for name, table in tables.items():
+        where = f"{path}, catalogue '{name}'"
+        if not CATALOGUE_NAME.match(name):
+            raise ValueError(f"{where}: name must use only a-z, 0-9 and '-'")
+        if not isinstance(table, dict):
+            raise ValueError(f"{where}: expected a [{name}] table")
+        if unknown := set(table) - set(CATALOGUE_KEYS):
+            raise ValueError(f"{where}: unknown key(s) {sorted(unknown)}; allowed: {sorted(CATALOGUE_KEYS)}")
+        if not table.get("url"):
+            raise ValueError(f"{where}: 'url' is required")
+        if table.get("auth_mode", base.auth_mode) not in AUTH_MODES:
+            raise ValueError(f"{where}: auth_mode must be one of {', '.join(AUTH_MODES)}")
+        # A dashboard belongs to one SimDB: never inherit the global one.
+        overrides = {"dashboard_url": None} | {CATALOGUE_KEYS[key]: value for key, value in table.items()}
+        overrides["simdb_url"] = overrides["simdb_url"].rstrip("/")
+        catalogues[name] = dataclasses.replace(base, **overrides)
+    return catalogues

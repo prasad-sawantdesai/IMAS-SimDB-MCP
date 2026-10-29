@@ -219,6 +219,7 @@ __marimo__/
 
 # local deployment secrets
 deploy/simdb-mcp.env
+deploy/catalogues.toml
 deploy/certs/
 .mcp.json
 

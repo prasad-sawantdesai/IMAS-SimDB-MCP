@@ -41,6 +41,7 @@ uv venv -p 3.12 && uv pip install -e ".[test,docs,lint]"   # set up
 | Change | Where |
 |---|---|
 | A tool's arguments, description or answer shape | `src/simdb_mcp/server.py` (also `INSTRUCTIONS` there) |
+| The web app, several catalogues at `/mcp/<name>` | `src/simdb_mcp/app.py` |
 | How searching works, caches, SimDB workarounds | `src/simdb_mcp/catalogue.py` |
 | SimDB requests, F5 login, API version, sessions | `src/simdb_mcp/client.py` |
 | Filter syntax / decoding SimDB JSON | `query.py` / `records.py` |
